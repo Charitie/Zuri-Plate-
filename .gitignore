@@ -1,0 +1,40 @@
+# Node / Expo
+node_modules/
+.expo/
+.expo-shared/
+web-build/
+dist/
+build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local environment
+.env
+.env.*
+*.local
+
+# Native builds
+android/.gradle/
+android/app/build/
+android/build/
+ios/Pods/
+ios/build/
+ios/*.xcworkspace
+ios/*.xcuserstate
+
+# Test / coverage
+coverage/
+
+# Editor settings
+.vscode/
+.idea/
+
+# Misc
+*.log
