@@ -7,7 +7,7 @@ export function entryProtein(entry: CalendarEntryWithMeal): number {
   return perServing * entry.servingsUsed;
 }
 
-export function dailyProteinTotal(entries: CalendarEntryWithMeal[]): number {
+export function dailyProteinTotal(entries: readonly CalendarEntryWithMeal[]): number {
   return entries.reduce((sum, e) => sum + entryProtein(e), 0);
 }
 
@@ -17,7 +17,7 @@ export interface WeeklyProteinSummary {
 }
 
 export function weeklyProteinSummary(
-  entriesByDate: Record<string, CalendarEntryWithMeal[]>
+  entriesByDate: Record<string, readonly CalendarEntryWithMeal[]>
 ): WeeklyProteinSummary[] {
   return Object.entries(entriesByDate)
     .map(([date, entries]) => ({ date, totalG: dailyProteinTotal(entries) }))

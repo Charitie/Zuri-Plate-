@@ -1,28 +1,37 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { OnboardingStackParamList } from '@/app/navigationTypes';
+import { DEFAULT_SETTINGS } from '@/data/repositories/settingsRepo';
 
-export function ProteinTargetScreen({ navigation }: any) {
-  const [target, setTarget] = useState('120');
+type Props = NativeStackScreenProps<OnboardingStackParamList, 'ProteinTarget'>;
+
+export function ProteinTargetScreen({ navigation }: Props) {
+  const [target, setTarget] = useState(String(DEFAULT_SETTINGS.proteinTargetG));
 
   return (
     <View style={styles.container}>
-      <Text style={typography.h2}>Daily protein target</Text>
+      <Text style={typography.h2} accessibilityRole="header">
+        Daily protein target
+      </Text>
       <TextInput
         style={styles.input}
         keyboardType="number-pad"
         value={target}
         onChangeText={setTarget}
-        placeholder="120"
+        placeholder={String(DEFAULT_SETTINGS.proteinTargetG)}
+        accessibilityLabel="Daily protein target in grams"
       />
       <Text style={{ textAlign: 'center', color: colors.textMuted }}>grams / day</Text>
-      <Pressable
-        style={styles.cta}
-        onPress={() => navigation.navigate('LeftoverPref', { proteinTargetG: Number(target) || 120 })}
-      >
-        <Text style={styles.ctaText}>Next</Text>
-      </Pressable>
+      <PrimaryButton
+        title="Next"
+        onPress={() =>
+          navigation.navigate('LeftoverPref', { proteinTargetG: Number(target) || DEFAULT_SETTINGS.proteinTargetG })
+        }
+      />
     </View>
   );
 }
@@ -37,6 +46,4 @@ const styles = StyleSheet.create({
     fontSize: 24,
     textAlign: 'center',
   },
-  cta: { backgroundColor: colors.primary, padding: 16, borderRadius: 12, alignItems: 'center' },
-  ctaText: { color: 'white', fontWeight: '700', fontSize: 16 },
 });

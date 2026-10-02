@@ -1,15 +1,15 @@
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
+import { photosDir } from './photoPaths';
 
-const PHOTOS_DIR = `${FileSystem.documentDirectory}meal-photos/`;
 const MAX_DIMENSION = 800;
 
 async function ensurePhotosDir(): Promise<void> {
-  const info = await FileSystem.getInfoAsync(PHOTOS_DIR);
+  const info = await FileSystem.getInfoAsync(photosDir());
   if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(PHOTOS_DIR, { intermediates: true });
+    await FileSystem.makeDirectoryAsync(photosDir(), { intermediates: true });
   }
 }
 
@@ -44,13 +44,14 @@ async function compressAndStore(sourceUri: string): Promise<string> {
     { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
   );
 
-  const destUri = `${PHOTOS_DIR}${Crypto.randomUUID()}.jpg`;
+  const destUri = `${photosDir()}${Crypto.randomUUID()}.jpg`;
   await FileSystem.copyAsync({ from: manipulated.uri, to: destUri });
   return destUri;
 }
 
+/** Only deletes files inside our own photos dir — never a user's library asset. */
 export async function deleteMealPhoto(uri: string | null): Promise<void> {
-  if (!uri) return;
+  if (!uri || !uri.startsWith(photosDir())) return;
   const info = await FileSystem.getInfoAsync(uri);
   if (info.exists) await FileSystem.deleteAsync(uri, { idempotent: true });
 }

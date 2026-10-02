@@ -1,4 +1,4 @@
-import { aggregateShoppingList } from '@/domain/shoppingAggregator';
+import { aggregateShoppingList, categorize } from '@/domain/shoppingAggregator';
 import { CalendarEntryWithMeal, MealIngredient } from '@/data/types';
 
 function makeEntry(overrides: Partial<CalendarEntryWithMeal>): CalendarEntryWithMeal {
@@ -27,8 +27,8 @@ function makeEntry(overrides: Partial<CalendarEntryWithMeal>): CalendarEntryWith
 
 describe('aggregateShoppingList', () => {
   const ingredients: MealIngredient[] = [
-    { id: 'i1', mealId: 'meal-1', name: 'Chicken', quantity: 400, unit: 'g' },
-    { id: 'i2', mealId: 'meal-1', name: 'Rice', quantity: 200, unit: 'g' },
+    { id: 'i1', mealId: 'meal-1', name: 'Chicken', quantity: 400, unit: 'g', category: null },
+    { id: 'i2', mealId: 'meal-1', name: 'Rice', quantity: 200, unit: 'g', category: null },
   ];
 
   it('scales ingredient quantities by servings used vs base servings', () => {
@@ -60,6 +60,66 @@ describe('aggregateShoppingList', () => {
       ingredientsByMealId: { 'meal-1': ingredients },
     });
     expect(result.find((r) => r.name === 'Chicken')?.category).toBe('proteins');
-    expect(result.find((r) => r.name === 'Rice')?.category).toBe('carbs');
+    expect(result.find((r) => r.name === 'Rice')?.category).toBe('grains');
+  });
+
+  it("uses an ingredient's own category over the keyword guess", () => {
+    const result = aggregateShoppingList({
+      entries: [makeEntry({})],
+      ingredientsByMealId: {
+        'meal-1': [{ id: 'i1', mealId: 'meal-1', name: 'Blue Band', quantity: 1, unit: 'pack', category: 'dairy' }],
+      },
+    });
+    expect(result[0].category).toBe('dairy');
+  });
+
+  it('a user-chosen category wins when merging with an auto-categorized copy from another meal', () => {
+    const auto = makeEntry({ id: 'a', mealId: 'meal-1' });
+    const chosen = makeEntry({ id: 'b', mealId: 'meal-2' });
+    const result = aggregateShoppingList({
+      entries: [auto, chosen],
+      ingredientsByMealId: {
+        'meal-1': [{ id: 'i1', mealId: 'meal-1', name: 'Avocado', quantity: 1, unit: 'piece', category: null }],
+        'meal-2': [{ id: 'i2', mealId: 'meal-2', name: 'avocado', quantity: 1, unit: 'piece', category: 'vegetables' }],
+      },
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].category).toBe('vegetables');
+    expect(result[0].quantity).toBe(2);
+  });
+});
+
+describe('categorize', () => {
+  it.each([
+    ['Oats', 'grains'],
+    ['Unga wa ugali', 'grains'],
+    ['Paprika', 'spices'],
+    ['Black pepper', 'spices'],
+    ['Pilau masala', 'spices'],
+    ['Garlic cloves', 'spices'],
+    ['Bananas', 'fruits'],
+    ['Avocado', 'fruits'],
+    ['Mala', 'dairy'],
+    ['Cooking oil', 'pantry'],
+    ['Sukuma wiki', 'vegetables'],
+    ['Potatoes', 'vegetables'],
+    ['Eggs', 'proteins'],
+    ['Something unusual', 'other'],
+  ])('%s -> %s', (name, category) => {
+    expect(categorize(name)).toBe(category);
+  });
+
+  it.each([
+    ['Bell pepper', 'vegetables'], // not the spice "pepper"
+    ['Green beans', 'vegetables'], // not the protein "beans"
+    ['Eggplant', 'vegetables'], // not "egg"
+    ['Peanut butter', 'proteins'], // not dairy "butter"
+    ['Butternut', 'vegetables'], // not "butter"
+    ['Tomato paste', 'pantry'], // not the vegetable
+    ['Coconut milk', 'pantry'], // not fruit or dairy
+    ['Peppercorns', 'spices'], // not grains "corn"
+    ['Boiled eggs', 'proteins'], // "oil" only matches at a word start
+  ])('disambiguates %s -> %s', (name, category) => {
+    expect(categorize(name)).toBe(category);
   });
 });

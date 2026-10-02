@@ -8,97 +8,75 @@ export interface PlanGeneratorInput {
   mealsByType: Record<MealType, Meal[]>;
   /** Meals used in the previous week, to steer away from exact repeats. */
   recentlyUsedMealIds?: Set<string>;
+  /**
+   * The dinner already on the calendar the day before `startDate`, if any. Its
+   * leftovers become the first day's lunch, and it won't be cooked again that night.
+   */
+  previousDinner?: CalendarEntry | null;
+  /** Id factory for new entries. Injected so this module stays free of native deps. */
+  newId: () => string;
+  /** Returns a float in [0, 1). Defaults to Math.random; inject a seeded one in tests. */
+  random?: () => number;
 }
 
-export interface GeneratedEntry extends Omit<CalendarEntry, 'id'> {}
-
 /**
- * Deterministic heuristic weekly plan generator (V1 — no ML).
+ * Deterministic-given-`random` heuristic weekly plan generator (V1 — no ML).
  *
  * For each day:
  *  - picks breakfast / snack / dinner from the library, preferring meals
  *    not yet used this week (falls back to reuse if the pool is small)
  *  - if leftoverLunchEnabled and the previous day's dinner had extra
- *    servings, lunch is auto-filled from that leftover
+ *    servings, lunch is that leftover, linked to the dinner by id
  *  - otherwise picks a lunch from the library the same way as other slots
+ *  - never serves the previous day's dinner again, so a dish eaten at dinner and
+ *    finished as leftover lunch doesn't carry over into another dinner/lunch. If
+ *    the library has no other dinner, that day's dinner is left empty.
+ *
+ * Entries come back with final ids, so they can be persisted as-is.
  */
-export function generateWeeklyPlan(input: PlanGeneratorInput): GeneratedEntry[] {
-  const { startDate, settings, mealsByType } = input;
+export function generateWeeklyPlan(input: PlanGeneratorInput): CalendarEntry[] {
+  const { startDate, settings, mealsByType, newId, random = Math.random } = input;
   const usedThisWeek = new Set<string>(input.recentlyUsedMealIds ?? []);
-  const entries: GeneratedEntry[] = [];
+  const entries: CalendarEntry[] = [];
+  let previousDinner: CalendarEntry | null = input.previousDinner ?? null;
+  if (previousDinner) usedThisWeek.add(previousDinner.mealId);
 
-  // Track dinners as we go so lunch can reference yesterday's dinner entry.
-  let previousDinner: GeneratedEntry | null = null;
-  let previousDinnerId: string | null = null; // filled in by caller after insert; see note below
+  const pick = (pool: Meal[]) => pickMeal(pool, usedThisWeek, random);
+  const makeEntry = (date: string, slot: MealType, meal: Meal, servingsUsed = 1): CalendarEntry => {
+    usedThisWeek.add(meal.id);
+    return { id: newId(), date, slot, mealId: meal.id, servingsUsed, isLeftover: false, sourceEntryId: null, eaten: false };
+  };
 
   for (let dayIndex = 0; dayIndex < settings.planDays; dayIndex++) {
     const date = addDaysIso(startDate, dayIndex);
 
-    const breakfast = pickMeal(mealsByType.breakfast, usedThisWeek);
-    const snack = pickMeal(mealsByType.snack, usedThisWeek);
-    const dinner = pickMeal(mealsByType.dinner, usedThisWeek);
+    const breakfast = pick(mealsByType.breakfast);
+    const snack = pick(mealsByType.snack);
+    const lastDinnerMealId = previousDinner?.mealId;
+    const dinner = pick(mealsByType.dinner.filter((m) => m.id !== lastDinnerMealId));
 
-    if (breakfast) entries.push(makeEntry(date, 'breakfast', breakfast, usedThisWeek));
-    if (snack) entries.push(makeEntry(date, 'snack', snack, usedThisWeek));
+    if (breakfast) entries.push(makeEntry(date, 'breakfast', breakfast));
+    if (snack) entries.push(makeEntry(date, 'snack', snack));
 
-    // Lunch: leftover from yesterday's dinner if enabled and available,
-    // otherwise pick a fresh lunch meal.
-    let lunchEntry: GeneratedEntry | null = null;
-    if (settings.leftoverLunchEnabled && previousDinner && previousDinner.servingsUsed > 1) {
-      // NOTE: sourceEntryId is a real calendar_entries.id, which only exists
-      // once the previous day's dinner has been persisted. The app layer
-      // (planWizard controller) should insert entries day-by-day and patch
-      // sourceEntryId in using the real id — see docs in PlanWizardScreen.
-      lunchEntry = {
-        date,
-        slot: 'lunch',
-        mealId: previousDinner.mealId,
-        servingsUsed: previousDinner.servingsUsed - 1,
-        isLeftover: true,
-        sourceEntryId: previousDinnerId, // placeholder, patched by caller
-        eaten: false,
-      };
+    const leftover = settings.leftoverLunchEnabled && previousDinner ? buildLeftoverLunch(previousDinner) : null;
+    if (leftover) {
+      entries.push({ id: newId(), ...leftover });
     } else {
-      const lunch = pickMeal(mealsByType.lunch, usedThisWeek);
-      if (lunch) lunchEntry = makeEntry(date, 'lunch', lunch, usedThisWeek);
+      const lunch = pick(mealsByType.lunch);
+      if (lunch) entries.push(makeEntry(date, 'lunch', lunch));
     }
-    if (lunchEntry) entries.push(lunchEntry);
 
-    if (dinner) {
-      const dinnerEntry = makeEntry(date, 'dinner', dinner, usedThisWeek, dinner.servings);
-      entries.push(dinnerEntry);
-      previousDinner = dinnerEntry;
-    } else {
-      previousDinner = null;
-    }
+    previousDinner = dinner ? makeEntry(date, 'dinner', dinner, dinner.servings) : null;
+    if (previousDinner) entries.push(previousDinner);
   }
 
   return entries;
 }
 
-function makeEntry(
-  date: string,
-  slot: MealType,
-  meal: Meal,
-  usedThisWeek: Set<string>,
-  servingsUsed = 1
-): GeneratedEntry {
-  usedThisWeek.add(meal.id);
-  return {
-    date,
-    slot,
-    mealId: meal.id,
-    servingsUsed,
-    isLeftover: false,
-    sourceEntryId: null,
-    eaten: false,
-  };
-}
-
 /** Prefers a meal not yet used this week; falls back to any meal in the pool. */
-function pickMeal(pool: Meal[], usedThisWeek: Set<string>): Meal | null {
+function pickMeal(pool: Meal[], usedThisWeek: Set<string>, random: () => number): Meal | null {
   if (pool.length === 0) return null;
   const unused = pool.filter((m) => !usedThisWeek.has(m.id));
   const candidates = unused.length > 0 ? unused : pool;
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  return candidates[Math.floor(random() * candidates.length)];
 }

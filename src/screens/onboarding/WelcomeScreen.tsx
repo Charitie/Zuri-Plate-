@@ -1,21 +1,24 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { OnboardingStackParamList } from '@/app/navigationTypes';
 
-export function WelcomeScreen({ navigation }: any) {
+type Props = NativeStackScreenProps<OnboardingStackParamList, 'Welcome'>;
+
+export function WelcomeScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
-      <Text style={typography.h1}>Plan meals.{'\n'}Cook once.{'\n'}Eat better.</Text>
-      <Pressable style={styles.cta} onPress={() => navigation.navigate('ProteinTarget')}>
-        <Text style={styles.ctaText}>Get started</Text>
-      </Pressable>
+      <Text style={typography.h1} accessibilityRole="header">
+        Plan meals.{'\n'}Cook once.{'\n'}Eat better.
+      </Text>
+      <PrimaryButton title="Get started" onPress={() => navigation.navigate('ProteinTarget')} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 24, gap: 32, backgroundColor: colors.background },
-  cta: { backgroundColor: colors.primary, padding: 16, borderRadius: 12, alignItems: 'center' },
-  ctaText: { color: 'white', fontWeight: '700', fontSize: 16 },
 });

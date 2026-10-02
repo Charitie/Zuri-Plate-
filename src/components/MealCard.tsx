@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
-import { CalendarEntryWithMeal } from '@/data/types';
+import { CalendarEntryWithMeal, MealType } from '@/data/types';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { entryProtein } from '@/domain/proteinCalculator';
@@ -10,7 +10,7 @@ interface Props {
   onPress?: () => void;
 }
 
-const SLOT_ICON: Record<string, string> = {
+const SLOT_ICON: Record<MealType, string> = {
   breakfast: '🍳',
   lunch: '🍗',
   dinner: '🍲',
@@ -21,7 +21,13 @@ export function MealCard({ entry, onPress }: Props) {
   const protein = Math.round(entryProtein(entry));
 
   return (
-    <Pressable onPress={onPress} style={styles.card}>
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={styles.card}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={`${entry.slot}: ${entry.meal.name}${entry.isLeftover ? ', leftover' : ''}, ${protein} grams protein${entry.eaten ? ', eaten' : ''}`}
+    >
       {entry.meal.photoUri ? (
         <Image source={{ uri: entry.meal.photoUri }} style={styles.thumb} />
       ) : (

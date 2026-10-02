@@ -1,56 +1,79 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
-import { useCalendarStore } from '@/store/useCalendarStore';
+import { EMPTY_ENTRIES, useCalendarStore } from '@/store/useCalendarStore';
 import { ProteinProgressBar } from '@/components/ProteinProgressBar';
 import { MealCard } from '@/components/MealCard';
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { useProteinToday } from '@/hooks/useProteinToday';
-import { todayIso, addDaysIso, dateRange } from '@/services/dateService';
+import { useToday } from '@/hooks/useToday';
+import { addDaysIso, dateRange, formatLongDate } from '@/services/dateService';
+import { CalendarStackParamList } from '@/app/navigationTypes';
 
-export function CalendarScreen({ navigation }: any) {
-  const [selectedDate, setSelectedDate] = useState(todayIso());
+type Props = NativeStackScreenProps<CalendarStackParamList, 'CalendarHome'>;
+
+const DAYS_BEFORE = 3;
+const DAYS_VISIBLE = 14;
+
+export function CalendarScreen({ navigation }: Props) {
+  const today = useToday();
+  const [selectedDate, setSelectedDate] = useState(today);
   const loadRange = useCalendarStore((s) => s.loadRange);
-  const entriesByDate = useCalendarStore((s) => s.entriesByDate);
+  const entries = useCalendarStore((s) => s.entriesByDate[selectedDate] ?? EMPTY_ENTRIES);
+  const hasAnyEntries = useCalendarStore((s) => Object.values(s.entriesByDate).some((es) => es.length > 0));
+  const error = useCalendarStore((s) => s.error);
   const { totalG, targetG } = useProteinToday();
 
-  useEffect(() => {
-    const start = addDaysIso(todayIso(), -3);
-    const end = addDaysIso(todayIso(), 10);
-    loadRange(start, end);
-  }, []);
+  const visibleDates = useMemo(() => dateRange(addDaysIso(today, -DAYS_BEFORE), DAYS_VISIBLE), [today]);
 
-  const visibleDates = dateRange(addDaysIso(todayIso(), -3), 14);
-  const isToday = selectedDate === todayIso();
-  const entries = entriesByDate[selectedDate] ?? [];
-  const hasAnyEntries = Object.keys(entriesByDate).length > 0;
+  // Re-runs when the day rolls over, so the window follows "today".
+  useEffect(() => {
+    loadRange(visibleDates[0], visibleDates[visibleDates.length - 1]);
+  }, [loadRange, visibleDates]);
+
+  const isToday = selectedDate === today;
+  const addMeal = () => navigation.navigate('AddMealToDay', { date: selectedDate });
 
   return (
-    <View style={styles.container}>
-      <Text style={typography.h1}>{isToday ? 'Good morning 👋' : selectedDate}</Text>
+    <SafeAreaView edges={['top']} style={styles.container}>
+      <Text style={typography.h1} accessibilityRole="header">
+        {isToday ? 'Good morning 👋' : formatLongDate(selectedDate)}
+      </Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.strip}>
-        {visibleDates.map((date) => (
-          <Pressable
-            key={date}
-            onPress={() => setSelectedDate(date)}
-            style={[styles.dateChip, date === selectedDate && styles.dateChipSelected]}
-          >
-            <Text style={[styles.dateChipText, date === selectedDate && styles.dateChipTextSelected]}>
-              {date.slice(5)}
-            </Text>
-          </Pressable>
-        ))}
+        {visibleDates.map((date) => {
+          const selected = date === selectedDate;
+          return (
+            <Pressable
+              key={date}
+              onPress={() => setSelectedDate(date)}
+              style={[styles.dateChip, selected && styles.dateChipSelected]}
+              accessibilityRole="button"
+              accessibilityLabel={date === today ? `Today, ${formatLongDate(date)}` : formatLongDate(date)}
+              accessibilityState={{ selected }}
+            >
+              <Text style={[styles.dateChipText, selected && styles.dateChipTextSelected]}>{date.slice(5)}</Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
       {isToday && <ProteinProgressBar totalG={totalG} targetG={targetG} />}
 
+      {error && (
+        <Text style={{ color: colors.danger }} accessibilityLiveRegion="polite">
+          {"Couldn't load your plan."}
+        </Text>
+      )}
+
       {!hasAnyEntries ? (
         <View style={styles.empty}>
           <Text style={typography.body}>No plan yet for this week.</Text>
-          <Pressable style={styles.cta} onPress={() => navigation.navigate('PlanWizard')}>
-            <Text style={styles.ctaText}>Plan my week</Text>
-          </Pressable>
+          <PrimaryButton title="Plan my week" onPress={() => navigation.navigate('PlanWizard')} />
+          <PrimaryButton title="Add a single meal" variant="secondary" onPress={addMeal} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ gap: 10, paddingBottom: 24 }}>
@@ -62,9 +85,15 @@ export function CalendarScreen({ navigation }: any) {
               onPress={() => navigation.navigate('DayDetail', { date: selectedDate })}
             />
           ))}
+          <PrimaryButton
+            title="+ Add meal"
+            variant="secondary"
+            onPress={addMeal}
+            accessibilityHint={`Adds a meal to ${formatLongDate(selectedDate)}`}
+          />
         </ScrollView>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -76,6 +105,4 @@ const styles = StyleSheet.create({
   dateChipText: { color: colors.text, fontWeight: '600' },
   dateChipTextSelected: { color: 'white' },
   empty: { alignItems: 'center', gap: 16, paddingTop: 40 },
-  cta: { backgroundColor: colors.primary, padding: 16, borderRadius: 12, alignItems: 'center', paddingHorizontal: 28 },
-  ctaText: { color: 'white', fontWeight: '700', fontSize: 16 },
 });

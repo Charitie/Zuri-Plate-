@@ -17,6 +17,8 @@ export interface MealIngredient {
   name: string;
   quantity: number;
   unit: string;
+  /** User-chosen shopping category; null means "auto" (keyword-based, see shoppingAggregator). */
+  category: ShoppingCategory | null;
 }
 
 export interface CalendarEntry {
@@ -41,7 +43,15 @@ export interface UserSettings {
   varietyPreference: string;
 }
 
-export type ShoppingCategory = 'proteins' | 'carbs' | 'vegetables' | 'other';
+export type ShoppingCategory =
+  | 'proteins'
+  | 'dairy'
+  | 'grains'
+  | 'vegetables'
+  | 'fruits'
+  | 'spices'
+  | 'pantry'
+  | 'other';
 
 export interface ShoppingListItem {
   id: string;
@@ -59,5 +69,5 @@ export interface NewMealInput {
   proteinG: number;
   servings: number;
   photoUri?: string | null;
-  ingredients: Array<{ name: string; quantity: number; unit: string }>;
+  ingredients: { name: string; quantity: number; unit: string; category?: ShoppingCategory | null }[];
 }

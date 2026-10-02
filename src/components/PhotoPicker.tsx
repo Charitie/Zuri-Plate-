@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Image, Pressable, Text, StyleSheet } from 'react-native';
+import { View, Image, Text, StyleSheet } from 'react-native';
 import { captureMealPhoto, pickMealPhoto } from '@/services/imageService';
+import { reportError } from '@/services/errors';
 import { colors } from '@/theme/colors';
+import { PrimaryButton } from './PrimaryButton';
 
 interface Props {
   photoUri: string | null;
@@ -9,32 +11,27 @@ interface Props {
 }
 
 export function PhotoPicker({ photoUri, onChange }: Props) {
-  const handleCapture = async () => {
-    const uri = await captureMealPhoto();
-    if (uri) onChange(uri);
-  };
-
-  const handlePick = async () => {
-    const uri = await pickMealPhoto();
-    if (uri) onChange(uri);
+  const run = async (source: () => Promise<string | null>) => {
+    try {
+      const uri = await source();
+      if (uri) onChange(uri);
+    } catch (e) {
+      reportError(e, "Couldn't get that photo.");
+    }
   };
 
   return (
     <View style={styles.container}>
       {photoUri ? (
-        <Image source={{ uri: photoUri }} style={styles.preview} />
+        <Image source={{ uri: photoUri }} style={styles.preview} accessibilityLabel="Meal photo" />
       ) : (
         <View style={[styles.preview, styles.placeholder]}>
           <Text style={{ color: colors.textMuted }}>No photo</Text>
         </View>
       )}
       <View style={styles.actions}>
-        <Pressable style={styles.button} onPress={handleCapture}>
-          <Text style={styles.buttonText}>Take Photo</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={handlePick}>
-          <Text style={styles.buttonText}>Choose from Library</Text>
-        </Pressable>
+        <PrimaryButton title="Take Photo" variant="secondary" size="small" style={styles.button} onPress={() => run(captureMealPhoto)} />
+        <PrimaryButton title="Choose from Library" variant="secondary" size="small" style={styles.button} onPress={() => run(pickMealPhoto)} />
       </View>
     </View>
   );
@@ -45,6 +42,5 @@ const styles = StyleSheet.create({
   preview: { width: '100%', height: 160, borderRadius: 12 },
   placeholder: { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   actions: { flexDirection: 'row', gap: 10 },
-  button: { flex: 1, padding: 10, borderRadius: 8, backgroundColor: colors.primaryMuted, alignItems: 'center' },
-  buttonText: { color: colors.primary, fontWeight: '600' },
+  button: { flex: 1, backgroundColor: colors.primaryMuted },
 });

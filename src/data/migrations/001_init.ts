@@ -1,3 +1,5 @@
+// Initial schema. Kept as a TS string because Metro can't import raw .sql files.
+export default `
 CREATE TABLE IF NOT EXISTS meals (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -47,3 +49,4 @@ CREATE TABLE IF NOT EXISTS shopping_list_items (
   checked INTEGER NOT NULL DEFAULT 0,
   list_generated_at TEXT NOT NULL
 );
+`;

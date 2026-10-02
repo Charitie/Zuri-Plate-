@@ -10,13 +10,20 @@ interface Props {
 }
 
 export function ShoppingListItemRow({ item, onToggle }: Props) {
+  const quantity = item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1);
   return (
-    <Pressable style={styles.row} onPress={() => onToggle(!item.checked)}>
+    <Pressable
+      style={styles.row}
+      onPress={() => onToggle(!item.checked)}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: item.checked }}
+      accessibilityLabel={`${item.name}, ${quantity} ${item.unit}`}
+    >
       <View style={[styles.checkbox, item.checked && styles.checkboxChecked]}>
         {item.checked && <Text style={styles.checkmark}>✓</Text>}
       </View>
       <Text style={[typography.body, item.checked && styles.checkedText]}>
-        {item.name} — {item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1)} {item.unit}
+        {item.name} — {quantity} {item.unit}
       </Text>
     </Pressable>
   );

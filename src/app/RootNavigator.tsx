@@ -1,46 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 
 import { WelcomeScreen } from '@/screens/onboarding/WelcomeScreen';
 import { ProteinTargetScreen } from '@/screens/onboarding/ProteinTargetScreen';
 import { LeftoverPrefScreen } from '@/screens/onboarding/LeftoverPrefScreen';
 import { PlanDaysScreen } from '@/screens/onboarding/PlanDaysScreen';
 import { TabNavigator } from './TabNavigator';
-import { getDb } from '@/data/db';
-import { settingsRepo } from '@/data/repositories/settingsRepo';
+import { RootStackParamList } from './navigationTypes';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors } from '@/theme/colors';
+import { typography } from '@/theme/typography';
 
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
-/** Onboarding is considered complete once a settings row exists with a non-default plan_days save. */
-async function hasCompletedOnboarding(): Promise<boolean> {
-  await getDb();
-  // A simple heuristic for V1: settingsRepo.get() creates defaults on first
-  // read, so we track completion by checking AsyncStorage/flag in a real
-  // build. Kept simple here: always show onboarding once, then TabNavigator
-  // owns navigation from MainTabs onward.
-  return false;
-}
-
+/**
+ * Which screens exist depends on `onboarded` from the settings store. When
+ * onboarding completes the store flips the flag and React Navigation swaps the
+ * stack — no manual `navigation.reset` needed, and Back can't return to it.
+ */
 export function RootNavigator() {
-  const [ready, setReady] = useState(false);
-  const [needsOnboarding, setNeedsOnboarding] = useState(true);
+  const onboarded = useSettingsStore((s) => s.onboarded);
+  const error = useSettingsStore((s) => s.error);
+  const load = useSettingsStore((s) => s.load);
 
   useEffect(() => {
-    (async () => {
-      await getDb();
-      const skip = await hasCompletedOnboarding();
-      setNeedsOnboarding(!skip);
-      setReady(true);
-    })();
-  }, []);
+    load();
+  }, [load]);
 
-  if (!ready) {
+  if (onboarded === null) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={styles.center}>
+        {error ? (
+          <>
+            <Text style={typography.body}>{"Couldn't open your data."}</Text>
+            <PrimaryButton title="Try again" onPress={load} />
+          </>
+        ) : (
+          <ActivityIndicator color={colors.primary} accessibilityLabel="Loading" />
+        )}
       </View>
     );
   }
@@ -48,7 +48,9 @@ export function RootNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {needsOnboarding && (
+        {onboarded ? (
+          <Stack.Screen name="MainTabs" component={TabNavigator} />
+        ) : (
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="ProteinTarget" component={ProteinTargetScreen} />
@@ -56,8 +58,11 @@ export function RootNavigator() {
             <Stack.Screen name="PlanDays" component={PlanDaysScreen} />
           </>
         )}
-        <Stack.Screen name="MainTabs" component={TabNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24, backgroundColor: colors.background },
+});

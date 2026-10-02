@@ -16,6 +16,9 @@ export function DayCell({ dateLabel, dayNumber, isToday, isSelected, proteinFrac
     <Pressable
       onPress={onPress}
       style={[styles.cell, isSelected && styles.selected, isToday && styles.today]}
+      accessibilityRole="button"
+      accessibilityLabel={`${isToday ? 'Today, ' : ''}${dateLabel} ${dayNumber}, ${Math.round(proteinFraction * 100)}% of protein target`}
+      accessibilityState={{ selected: isSelected }}
     >
       <Text style={styles.dayLabel}>{dateLabel}</Text>
       <Text style={styles.dayNumber}>{dayNumber}</Text>
