@@ -42,9 +42,20 @@ export function generateWeeklyPlan(input: PlanGeneratorInput): CalendarEntry[] {
   if (previousDinner) usedThisWeek.add(previousDinner.mealId);
 
   const pick = (pool: Meal[]) => pickMeal(pool, usedThisWeek, random);
-  const makeEntry = (date: string, slot: MealType, meal: Meal, servingsUsed = 1): CalendarEntry => {
+  // Eats one serving; cooks `servingsCooked` (more than one only for a dinner that makes leftovers).
+  const makeEntry = (date: string, slot: MealType, meal: Meal, servingsCooked = 1): CalendarEntry => {
     usedThisWeek.add(meal.id);
-    return { id: newId(), date, slot, mealId: meal.id, servingsUsed, isLeftover: false, sourceEntryId: null, eaten: false };
+    return {
+      id: newId(),
+      date,
+      slot,
+      mealId: meal.id,
+      servingsUsed: 1,
+      servingsCooked,
+      isLeftover: false,
+      sourceEntryId: null,
+      eaten: false,
+    };
   };
 
   for (let dayIndex = 0; dayIndex < settings.planDays; dayIndex++) {
@@ -66,7 +77,11 @@ export function generateWeeklyPlan(input: PlanGeneratorInput): CalendarEntry[] {
       if (lunch) entries.push(makeEntry(date, 'lunch', lunch));
     }
 
-    previousDinner = dinner ? makeEntry(date, 'dinner', dinner, dinner.servings) : null;
+    // With leftovers on, cook the whole recipe: the rest feeds tomorrow's lunch (on the
+    // last day, the first lunch of the next plan). With them off, cook just one serving.
+    previousDinner = dinner
+      ? makeEntry(date, 'dinner', dinner, settings.leftoverLunchEnabled ? dinner.servings : 1)
+      : null;
     if (previousDinner) entries.push(previousDinner);
   }
 

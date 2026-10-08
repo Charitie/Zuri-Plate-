@@ -82,6 +82,20 @@ describe('generateWeeklyPlan', () => {
     expect(day2Lunch.servingsUsed).toBe(1);
   });
 
+  it('cooks the whole recipe for a leftover-making dinner but eats one serving of it', () => {
+    const plan = generate();
+    const day1Dinner = plan.find((e) => e.date === '2026-09-21' && e.slot === 'dinner')!;
+    const day2Lunch = plan.find((e) => e.date === '2026-09-22' && e.slot === 'lunch')!;
+    expect(day1Dinner).toMatchObject({ servingsUsed: 1, servingsCooked: 2 });
+    expect(day2Lunch).toMatchObject({ servingsUsed: 1, servingsCooked: 0 });
+  });
+
+  it('cooks one serving per dinner when leftovers are disabled', () => {
+    const plan = generate({ settings: { ...settings, leftoverLunchEnabled: false } });
+    const dinners = plan.filter((e) => e.slot === 'dinner');
+    expect(dinners.every((d) => d.servingsUsed === 1 && d.servingsCooked === 1)).toBe(true);
+  });
+
   it('does not mark the first day lunch as leftover (no prior dinner yet)', () => {
     const plan = generate();
     const firstDayLunch = plan.find((e) => e.date === '2026-09-21' && e.slot === 'lunch');
@@ -142,7 +156,8 @@ describe('generateWeeklyPlan', () => {
       date: '2026-09-20',
       slot: 'dinner' as const,
       mealId: chicken.id,
-      servingsUsed: 2,
+      servingsUsed: 1,
+      servingsCooked: 2,
       isLeftover: false,
       sourceEntryId: null,
       eaten: false,

@@ -26,7 +26,13 @@ export interface CalendarEntry {
   date: string; // YYYY-MM-DD
   slot: MealType;
   mealId: string;
+  /** Servings eaten in this slot — drives protein. */
   servingsUsed: number;
+  /**
+   * Servings cooked for this slot — drives the shopping list. A dinner that makes
+   * leftovers cooks more than it eats; a leftover lunch cooks 0 (its dinner did).
+   */
+  servingsCooked: number;
   isLeftover: boolean;
   sourceEntryId: string | null;
   eaten: boolean;

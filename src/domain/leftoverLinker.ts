@@ -8,7 +8,7 @@ import { addDaysIso } from '@/services/dateService';
  */
 export function buildLeftoverLunch(dinnerEntry: CalendarEntry): Omit<CalendarEntry, 'id'> | null {
   if (dinnerEntry.slot !== 'dinner') return null;
-  const leftoverServings = dinnerEntry.servingsUsed - 1; // 1 serving consumed at dinner
+  const leftoverServings = dinnerEntry.servingsCooked - dinnerEntry.servingsUsed;
   if (leftoverServings <= 0) return null;
 
   return {
@@ -16,6 +16,7 @@ export function buildLeftoverLunch(dinnerEntry: CalendarEntry): Omit<CalendarEnt
     slot: 'lunch' as MealType,
     mealId: dinnerEntry.mealId,
     servingsUsed: leftoverServings,
+    servingsCooked: 0, // already cooked (and bought) with the dinner
     isLeftover: true,
     sourceEntryId: dinnerEntry.id,
     eaten: false,

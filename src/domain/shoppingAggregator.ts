@@ -78,9 +78,10 @@ type AggregatedItem = Omit<ShoppingListItem, 'id' | 'checked' | 'listGeneratedAt
 
 /**
  * Aggregates ingredient quantities across a set of calendar entries,
- * scaling by servingsUsed vs the meal's base servings, and merges
- * same-name-and-unit ingredients into one line. Each ingredient's own
- * category is used when set; otherwise it's guessed from its name.
+ * scaling by servings cooked vs the meal's base servings, and merges
+ * same-name-and-unit ingredients into one line. Leftovers cook nothing, so
+ * they add nothing. Each ingredient's own category is used when set;
+ * otherwise it's guessed from its name.
  */
 export function aggregateShoppingList(input: AggregatorInput): AggregatedItem[] {
   const merged = new Map<string, AggregatedItem>();
@@ -88,8 +89,9 @@ export function aggregateShoppingList(input: AggregatorInput): AggregatedItem[] 
   const userCategorized = new Set<string>();
 
   for (const entry of input.entries) {
+    if (entry.servingsCooked <= 0) continue;
     const ingredients = input.ingredientsByMealId[entry.mealId] ?? [];
-    const scale = entry.meal.servings > 0 ? entry.servingsUsed / entry.meal.servings : 1;
+    const scale = entry.meal.servings > 0 ? entry.servingsCooked / entry.meal.servings : 1;
 
     for (const ing of ingredients) {
       const key = `${ing.name.toLowerCase()}|${ing.unit.toLowerCase()}`;

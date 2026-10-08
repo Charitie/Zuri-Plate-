@@ -31,12 +31,19 @@ const build = (overrides: Partial<SlotAssignmentInput> = {}) =>
 describe('buildSlotEntries', () => {
   it("cooks a multi-serving dinner in full and puts the rest in tomorrow's lunch", () => {
     const [dinner, lunch] = build();
-    expect(dinner).toMatchObject({ date: '2026-10-01', slot: 'dinner', servingsUsed: 3, isLeftover: false });
+    expect(dinner).toMatchObject({
+      date: '2026-10-01',
+      slot: 'dinner',
+      servingsUsed: 1,
+      servingsCooked: 3,
+      isLeftover: false,
+    });
     expect(lunch).toMatchObject({
       date: '2026-10-02',
       slot: 'lunch',
       mealId: 'stew',
       servingsUsed: 2,
+      servingsCooked: 0,
       isLeftover: true,
       sourceEntryId: dinner.id,
     });
@@ -50,6 +57,6 @@ describe('buildSlotEntries', () => {
   ])('adds just one serving with no leftover when %s', (_, overrides) => {
     const entries = build(overrides);
     expect(entries).toHaveLength(1);
-    expect(entries[0].servingsUsed).toBe(1);
+    expect(entries[0]).toMatchObject({ servingsUsed: 1, servingsCooked: 1 });
   });
 });

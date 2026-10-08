@@ -9,6 +9,7 @@ interface EntryRow {
   slot: MealType;
   meal_id: string;
   servings_used: number;
+  servings_cooked: number;
   is_leftover: number;
   source_entry_id: string | null;
   eaten: number;
@@ -31,6 +32,7 @@ function rowToEntry(row: EntryRow): CalendarEntry {
     slot: row.slot,
     mealId: row.meal_id,
     servingsUsed: row.servings_used,
+    servingsCooked: row.servings_cooked,
     isLeftover: !!row.is_leftover,
     sourceEntryId: row.source_entry_id,
     eaten: !!row.eaten,
@@ -64,11 +66,21 @@ const SELECT_WITH_MEAL = `
 
 const SLOT_ORDER = `CASE ce.slot WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END`;
 
-const INSERT_SQL = `INSERT INTO calendar_entries (id, date, slot, meal_id, servings_used, is_leftover, source_entry_id, eaten)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+const INSERT_SQL = `INSERT INTO calendar_entries (id, date, slot, meal_id, servings_used, servings_cooked, is_leftover, source_entry_id, eaten)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 function insertParams(e: CalendarEntry) {
-  return [e.id, e.date, e.slot, e.mealId, e.servingsUsed, e.isLeftover ? 1 : 0, e.sourceEntryId, e.eaten ? 1 : 0];
+  return [
+    e.id,
+    e.date,
+    e.slot,
+    e.mealId,
+    e.servingsUsed,
+    e.servingsCooked,
+    e.isLeftover ? 1 : 0,
+    e.sourceEntryId,
+    e.eaten ? 1 : 0,
+  ];
 }
 
 export const calendarRepo = {
@@ -118,12 +130,13 @@ export const calendarRepo = {
     if (!existing) throw new Error(`Calendar entry ${id} not found`);
     const merged = { ...rowToEntry(existing), ...patch };
     await db.runAsync(
-      `UPDATE calendar_entries SET date=?, slot=?, meal_id=?, servings_used=?, is_leftover=?, source_entry_id=?, eaten=? WHERE id=?`,
+      `UPDATE calendar_entries SET date=?, slot=?, meal_id=?, servings_used=?, servings_cooked=?, is_leftover=?, source_entry_id=?, eaten=? WHERE id=?`,
       [
         merged.date,
         merged.slot,
         merged.mealId,
         merged.servingsUsed,
+        merged.servingsCooked,
         merged.isLeftover ? 1 : 0,
         merged.sourceEntryId,
         merged.eaten ? 1 : 0,

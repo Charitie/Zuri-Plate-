@@ -7,7 +7,8 @@ function makeEntry(overrides: Partial<CalendarEntryWithMeal>): CalendarEntryWith
     date: '2026-09-21',
     slot: 'dinner',
     mealId: 'meal-1',
-    servingsUsed: 2,
+    servingsUsed: 1,
+    servingsCooked: 2,
     isLeftover: false,
     sourceEntryId: null,
     eaten: false,
@@ -31,8 +32,8 @@ describe('aggregateShoppingList', () => {
     { id: 'i2', mealId: 'meal-1', name: 'Rice', quantity: 200, unit: 'g', category: null },
   ];
 
-  it('scales ingredient quantities by servings used vs base servings', () => {
-    const entry = makeEntry({ servingsUsed: 1 }); // half the base 2 servings
+  it('scales ingredient quantities by servings cooked vs base servings', () => {
+    const entry = makeEntry({ servingsCooked: 1 }); // half the base 2 servings
     const result = aggregateShoppingList({
       entries: [entry],
       ingredientsByMealId: { 'meal-1': ingredients },
@@ -40,6 +41,30 @@ describe('aggregateShoppingList', () => {
 
     const chicken = result.find((r) => r.name === 'Chicken');
     expect(chicken?.quantity).toBe(200); // 400g * (1/2)
+  });
+
+  it('buys a leftover-making dinner once, not again for its leftover lunch', () => {
+    const dinner = makeEntry({ id: 'dinner', servingsUsed: 1, servingsCooked: 2 });
+    const leftover = makeEntry({
+      id: 'leftover',
+      date: '2026-09-22',
+      slot: 'lunch',
+      servingsUsed: 1,
+      servingsCooked: 0,
+      isLeftover: true,
+      sourceEntryId: 'dinner',
+    });
+    const result = aggregateShoppingList({
+      entries: [dinner, leftover],
+      ingredientsByMealId: { 'meal-1': ingredients },
+    });
+
+    expect(result.find((r) => r.name === 'Chicken')?.quantity).toBe(400); // one full recipe
+  });
+
+  it('adds nothing for a leftover whose dinner is outside the range', () => {
+    const leftover = makeEntry({ servingsCooked: 0, isLeftover: true, sourceEntryId: 'earlier-dinner' });
+    expect(aggregateShoppingList({ entries: [leftover], ingredientsByMealId: { 'meal-1': ingredients } })).toEqual([]);
   });
 
   it('merges the same ingredient across multiple entries', () => {

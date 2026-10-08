@@ -26,7 +26,7 @@ const chicken: NewMealInput = {
 };
 
 function entry(overrides: Partial<CalendarEntry> & Pick<CalendarEntry, 'id' | 'mealId' | 'date'>): CalendarEntry {
-  return { slot: 'dinner', servingsUsed: 1, isLeftover: false, sourceEntryId: null, eaten: false, ...overrides };
+  return { slot: 'dinner', servingsUsed: 1, servingsCooked: 1, isLeftover: false, sourceEntryId: null, eaten: false, ...overrides };
 }
 
 beforeEach(async () => {
@@ -88,6 +88,28 @@ describe('migrations', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('upgrades v4 calendar entries: splits servings into cooked and eaten', async () => {
+    const db = createFakeDb();
+    await runMigrations(db, migrations.slice(0, 4));
+    db.raw.exec(`
+      INSERT INTO meals VALUES ('m1','Stew','dinner',120,4,NULL,'','');
+      INSERT INTO calendar_entries VALUES ('dinner','2026-09-21','dinner','m1',4,0,NULL,0);
+      INSERT INTO calendar_entries VALUES ('leftover','2026-09-22','lunch','m1',3,1,'dinner',0);
+      INSERT INTO calendar_entries VALUES ('breakfast','2026-09-22','breakfast','m1',1,0,NULL,0);
+    `);
+
+    await runMigrations(db);
+
+    const rows = await db.getAllAsync<{ id: string; servings_used: number; servings_cooked: number }>(
+      'SELECT id, servings_used, servings_cooked FROM calendar_entries ORDER BY id'
+    );
+    expect(rows).toEqual([
+      { id: 'breakfast', servings_used: 1, servings_cooked: 1 },
+      { id: 'dinner', servings_used: 1, servings_cooked: 4 },
+      { id: 'leftover', servings_used: 3, servings_cooked: 0 },
+    ]);
+  });
+
   it('rolls back a failing migration and leaves the version unchanged', async () => {
     const db = createFakeDb();
     await runMigrations(db, migrations.slice(0, 1));
@@ -143,7 +165,7 @@ describe('mealsRepo', () => {
 
   it('deleting a meal cascades to its ingredients and calendar entries', async () => {
     const meal = await mealsRepo.create(chicken);
-    await calendarRepo.create({ date: '2026-09-21', slot: 'dinner', mealId: meal.id, servingsUsed: 2, isLeftover: false, sourceEntryId: null, eaten: false });
+    await calendarRepo.create({ date: '2026-09-21', slot: 'dinner', mealId: meal.id, servingsUsed: 1, servingsCooked: 2, isLeftover: false, sourceEntryId: null, eaten: false });
 
     await mealsRepo.delete(meal.id);
 
@@ -160,14 +182,18 @@ describe('calendarRepo', () => {
 
   const plan = (): CalendarEntry[] => [
     // Deliberately out of order: the leftover comes before its source dinner.
-    entry({ id: 'lunch-2', mealId, date: '2026-09-22', slot: 'lunch', isLeftover: true, sourceEntryId: 'dinner-1' }),
-    entry({ id: 'dinner-1', mealId, date: '2026-09-21', servingsUsed: 2 }),
+    entry({ id: 'lunch-2', mealId, date: '2026-09-22', slot: 'lunch', servingsCooked: 0, isLeftover: true, sourceEntryId: 'dinner-1' }),
+    entry({ id: 'dinner-1', mealId, date: '2026-09-21', servingsCooked: 2 }),
   ];
 
   it('replaceRange saves a plan and joins each entry with its meal', async () => {
     await calendarRepo.replaceRange('2026-09-21', '2026-09-22', plan());
     const entries = await calendarRepo.listByDateRange('2026-09-21', '2026-09-22');
     expect(entries.map((e) => e.id)).toEqual(['dinner-1', 'lunch-2']);
+    expect(entries.map((e) => [e.servingsUsed, e.servingsCooked])).toEqual([
+      [1, 2],
+      [1, 0],
+    ]);
     expect(entries[0].meal.name).toBe('Chicken');
     expect(entries[0].meal.photoUri).toBe('file:///docs/meal-photos/abc.jpg');
     expect(entries[1].sourceEntryId).toBe('dinner-1');
